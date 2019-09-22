@@ -63,6 +63,9 @@
     <ProjectReference Include="..\hs_interop\hs_interop.vcxproj">
       <Project>{a75be7ae-cb17-4b90-bb65-b20b2c16d057}</Project>
     </ProjectReference>
+    <ProjectReference Include="hs_lib.vcxproj">
+      <Project>{a2394d3c-de3b-409e-a9a8-ffb330f7c144}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

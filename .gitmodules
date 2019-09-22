@@ -1,0 +1,3 @@
+[submodule "lib/util-cpp-common"]
+	path = lib/util-cpp-common
+	url = https://github.com/d8euAI8sMs/util-cpp-common.git
