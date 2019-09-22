@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- The following two targets are not necessary since vs generates gcc-compatible .lib automatically -->
+
+  <!-- <Target Name="CheckMsysToolsAreInPath" AfterTargets="Build">
+    <Message Importance="High" Text="Checking whether gendef and dlltool are present..." />
+    <Exec Command="where gendef" />
+    <Exec Command="where dlltool" />
+  </Target>
+
+  <Target Name="GenerateGCCImportLib" AfterTargets="CheckMsysToolsAreInPath">
+    <Message Importance="High" Text="Generating .def file for $(TargetPath)" />
+    <Exec WorkingDirectory="$(TargetDir)" Command="gendef.exe $(TargetFileName)" />
+    <Message Importance="High" Text="Generating .lib file for $(TargetPath) (overwrites default one)" />
+    <Exec WorkingDirectory="$(TargetDir)" Command="dlltool.exe -k -d $(TargetName).def -l $(TargetName).lib -D $(TargetName)" />
+  </Target> -->
+
+  <Target Name="CopyLibsToStackWork" AfterTargets="Build">
+    <Message Importance="High" Text="Copying libs to main haskell project" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="..\hs_delay" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).lib" DestinationFolder="..\hs_delay\.vs-work" />
+  </Target>
+
+</Project>

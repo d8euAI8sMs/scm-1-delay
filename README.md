@@ -1,4 +1,4 @@
-# ss-13-ising @ d8euAI8sMs
+# scm-1-delay @ d8euAI8sMs
 
 Part of [d8euAI8sMs](https://github.com/d8euAI8sMs) namespace. See [`learning` repository](https://github.com/d8euAI8sMs/learning) for details.
 

@@ -1,0 +1,15 @@
+*.sdf
+*.opensdf
+*.suo
+*.vcxproj.user
+*.aps
+*.cabal
+*.dll
+obj/
+ipch/
+Debug/
+Release/
+x64/
+.vs/
+.stack-work/
+.vs-work/
