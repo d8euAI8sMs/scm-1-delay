@@ -4,6 +4,8 @@
 #include "pch.h"
 #include "framework.h"
 #include "DelayGUI.h"
+#include "CMainDialog.h"
+#include <interop\types.h>
 
 // Dummy exported function (otherwise no .lib is generated and build fails)
 #include <cstdio>
@@ -51,6 +53,8 @@ END_MESSAGE_MAP()
 // CDelayGUIApp construction
 
 CDelayGUIApp::CDelayGUIApp()
+	: m_bInitialized(FALSE)
+	, m_callbackCb(0)
 {
 	// TODO: add construction code here,
 	// Place all significant initialization in InitInstance
@@ -66,7 +70,52 @@ CDelayGUIApp theApp;
 
 BOOL CDelayGUIApp::InitInstance()
 {
+	if (!m_bInitialized) return TRUE;
+
+	// InitCommonControlsEx() is required on Windows XP if an application
+	// manifest specifies use of ComCtl32.dll version 6 or later to enable
+	// visual styles.  Otherwise, any window creation will fail.
+	INITCOMMONCONTROLSEX InitCtrls;
+	InitCtrls.dwSize = sizeof(InitCtrls);
+	// Set this to include all the common control classes you want to use
+	// in your application.
+	InitCtrls.dwICC = ICC_WIN95_CLASSES;
+	InitCommonControlsEx(&InitCtrls);
+
 	CWinApp::InitInstance();
 
+	CMainDialog dlg;
+	dlg.m_callbackCb = m_callbackCb;
+	m_pMainWnd = &dlg;
+
+	if (m_callbackCb != 0) m_callbackCb(HSDEV_POST_INIT, 0, 0);
+
+	INT_PTR nResponse = dlg.DoModal();
+
+	if (m_callbackCb != 0) m_callbackCb(HSDEV_PRE_EXIT, 0, 0);
+
 	return TRUE;
+}
+
+void hsd_init() {
+}
+
+void hsd_show_and_wait(hsd_callback cb)
+{
+	AFX_MANAGE_STATE(AfxGetStaticModuleState());
+	theApp.m_bInitialized = true;
+	theApp.m_callbackCb = cb;
+	if (theApp.InitInstance())
+	{
+		theApp.Run();
+	}
+}
+
+void hsd_refresh() {
+	static_cast<CMainDialog*>(theApp.GetMainWnd())->Refresh();
+}
+
+void hsd_exit() {
+	AFX_MANAGE_STATE(AfxGetStaticModuleState());
+	theApp.ExitInstance();
 }

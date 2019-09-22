@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <interop\types.h>
+
 #ifndef __AFXWIN_H__
 	#error "include 'pch.h' before including this file for PCH"
 #endif
@@ -22,6 +24,8 @@ public:
 // Overrides
 public:
 	virtual BOOL InitInstance();
+	BOOL m_bInitialized;
+	hsd_callback m_callbackCb;
 
 	DECLARE_MESSAGE_MAP()
 };
