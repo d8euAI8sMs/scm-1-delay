@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
-  <!-- The following two targets are not necessary since vs generates gcc-compatible .lib automatically -->
+  <!-- ~~The following two targets are not necessary since vs generates gcc-compatible .lib automatically~~ -->
+  <!-- Unfortunately, this is true for only `void (void)` functions. The method will fail for functions taking at least one parameter -->
 
-  <!-- <Target Name="CheckMsysToolsAreInPath" AfterTargets="Build">
+  <Target Name="CheckMsysToolsAreInPath" AfterTargets="Build">
     <Message Importance="High" Text="Checking whether gendef and dlltool are present..." />
     <Exec Command="where gendef" />
     <Exec Command="where dlltool" />
@@ -14,9 +15,9 @@
     <Exec WorkingDirectory="$(TargetDir)" Command="gendef.exe $(TargetFileName)" />
     <Message Importance="High" Text="Generating .lib file for $(TargetPath) (overwrites default one)" />
     <Exec WorkingDirectory="$(TargetDir)" Command="dlltool.exe -k -d $(TargetName).def -l $(TargetName).lib -D $(TargetName)" />
-  </Target> -->
+  </Target>
 
-  <Target Name="CopyLibsToStackWork" AfterTargets="Build">
+  <Target Name="CopyLibsToStackWork" AfterTargets="GenerateGCCImportLib">
     <Message Importance="High" Text="Copying libs to main haskell project" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="..\hs_delay" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).lib" DestinationFolder="..\hs_delay\.vs-work" />
