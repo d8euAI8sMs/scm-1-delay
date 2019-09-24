@@ -190,6 +190,9 @@ void CMainDialog::OnSimulation()
 	Invoke([this]() {
 		UpdateData(TRUE);
 		m_mode = MODE_SIM;
+		m_data.results.am.data->clear();
+		m_data.results.pm.data->clear();
+		m_data.results.fm.data->clear();
 		if (m_callbackCb != 0) m_callbackCb(HSDEV_ON_ACTION, HSDAC_SIM_START, 0);
 	});
 
