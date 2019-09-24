@@ -28,6 +28,7 @@ import Foreign.Ptr(Ptr, FunPtr, freeHaskellFunPtr, plusPtr)
 import Foreign.C
 import Foreign.Storable
 import Data.Coerce(coerce)
+import Data.IORef(IORef, newIORef, readIORef, writeIORef)
 import Foreign.Marshal.Alloc(alloca)
 import Foreign.Marshal.Array(peekArray, withArray)
 import Foreign.Marshal.Utils(with)
@@ -267,35 +268,42 @@ hsdInit     = hsd_init
 hsdRefresh  = hsd_refresh
 hsdExit     = hsd_exit
 
-data HsdCallbacks = HsdCallbacks {
-    hsdPostInitCb   :: IO (),
-    hsdPreExitCb    :: IO (),
-    hsdPreShowCb    :: IO (),
-    hsdPreHideCb    :: IO (),
-    hsdRefreshCb    :: IO (),
-    hsdActionCb     :: HsdAction -> IO ()
+data HsdCallbacks s = HsdCallbacks {
+    hsdPostInitCb   :: s -> IO s,
+    hsdPreExitCb    :: s -> IO s,
+    hsdPreShowCb    :: s -> IO s,
+    hsdPreHideCb    :: s -> IO s,
+    hsdRefreshCb    :: s -> IO s,
+    hsdActionCb     :: s -> HsdAction -> IO s
 }
 
 mkHsdCallbacks = HsdCallbacks {
-    hsdPostInitCb   = return (),
-    hsdPreExitCb    = return (),
-    hsdPreShowCb    = return (),
-    hsdPreHideCb    = return (),
-    hsdRefreshCb    = return (),
-    hsdActionCb     = \_ -> return ()
+    hsdPostInitCb   = \s -> return s,
+    hsdPreExitCb    = \s -> return s,
+    hsdPreShowCb    = \s -> return s,
+    hsdPreHideCb    = \s -> return s,
+    hsdRefreshCb    = \s -> return s,
+    hsdActionCb     = \s _ -> return s
 }
 
-selectCb :: HsdCallbacks -> CInt -> CInt -> Ptr () -> IO ()
-selectCb cb e = case (toEnum . fromIntegral) e of
-    HsdevPostInit       -> \_ _ -> hsdPostInitCb cb
-    HsdevPreExit        -> \_ _ -> hsdPreExitCb cb
-    HsdevPreShow        -> \_ _ -> hsdPreShowCb cb
-    HsdevPreHide        -> \_ _ -> hsdPreHideCb cb
-    HsdevPostRefresh    -> \_ _ -> hsdRefreshCb cb
-    HsdevOnAction       -> \a _ -> hsdActionCb cb $ (toEnum . fromIntegral) a
+selectCb :: IORef s -> HsdCallbacks s -> CInt -> CInt -> Ptr () -> IO ()
+selectCb s cb e = case (toEnum . fromIntegral) e of
+    HsdevPostInit       -> \_ _ -> withState s $ \s0 -> (hsdPostInitCb cb) s0
+    HsdevPreExit        -> \_ _ -> withState s $ \s0 -> (hsdPreExitCb cb) s0
+    HsdevPreShow        -> \_ _ -> withState s $ \s0 -> (hsdPreShowCb cb) s0
+    HsdevPreHide        -> \_ _ -> withState s $ \s0 -> (hsdPreHideCb cb) s0
+    HsdevPostRefresh    -> \_ _ -> withState s $ \s0 -> (hsdRefreshCb cb) s0
+    HsdevOnAction       -> \a _ -> withState s $ \s0 -> (hsdActionCb cb) s0 ((toEnum . fromIntegral) a)
     unmatched           -> error ("Unexpected enum value " ++ show unmatched)
 
-hsdShowAndWait :: HsdCallbacks -> IO()
-hsdShowAndWait cb = do
-    cbW <- wrapCbIO $ selectCb cb
+withState :: IORef s -> (s -> IO s) -> IO ()
+withState s f = do
+    s0 <- readIORef s
+    s1 <- f s0
+    writeIORef s s1
+
+hsdShowAndWait :: s -> HsdCallbacks s -> IO()
+hsdShowAndWait s0 cb = do
+    s <- newIORef s0
+    cbW <- wrapCbIO $ selectCb s cb
     hsd_show_and_wait cbW
