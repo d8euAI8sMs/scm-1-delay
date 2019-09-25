@@ -3,11 +3,68 @@ module Lib
     ) where
 
 import Interop
-import Foreign.Ptr(FunPtr, freeHaskellFunPtr)
+import Signal hiding (Point(..))
+import Util
+import System.Random
 
-foreign import ccall dummy :: IO ()
+data Signals = Signals {
+    am :: (SignalData, SignalData),
+    pm :: (SignalData, SignalData),
+    fm :: (SignalData, SignalData)
+}
 
-defaultHsdCallbacks :: HsdCallbacks Int
+data Correlations = Correlations {
+    amCors :: (Double, SignalData),
+    pmCors :: (Double, SignalData),
+    fmCors :: (Double, SignalData)
+}
+
+data State = Empty | DemoState {
+    signals :: Signals
+} | SimState {
+    it :: Int
+}
+
+newState = Empty
+newSimState = SimState 0
+newDemoState s = DemoState s
+
+mkGenData :: Signals -> GenData
+mkGenData s = GenData n ns (mk $ fst $ am s)
+                           (mk $ fst $ pm s)
+                           (mk $ fst $ fm s)
+                           (mk $ snd $ am s)
+                           (mk $ snd $ pm s)
+                           (mk $ snd $ fm s) where
+    n  = length $ signalData $ fst (am s)
+    ns = length $ signalData $ snd (am s)
+    mk ds = ptpt `fmap` signalData ds
+
+mkSignals :: StdGen -> SignalParams -> Double -> Double -> BinData -> Signals
+mkSignals g p tau snr bd = Signals { am = mk AM, pm = mk PM, fm = mk FM } where
+    mk m = (d1, d2) where
+        d1' = mkSignal p bd m
+        d2' = shift p tau d1'
+        d1  = noisify g 10 d1'
+        d2  = noisify g snr d2'
+
+correlateAll :: Signals -> Correlations
+correlateAll (Signals am pm fm) = Correlations (corr am) (corr pm) (corr fm) where
+    corr (s1, s2) = (tau, pts) where
+        pts = correlate s1 s2
+        tau = argmax pts
+
+mkDemoData :: Correlations -> DemoData
+mkDemoData cs = DemoData n (mk $ snd $ amCors cs)
+                           (mk $ snd $ pmCors cs)
+                           (mk $ snd $ fmCors cs)
+                           (fst $ amCors cs)
+                           (fst $ pmCors cs)
+                           (fst $ fmCors cs) where
+    n = length $ signalData $ snd (amCors cs)
+    mk ds = ptpt `fmap` signalData ds
+
+defaultHsdCallbacks :: HsdCallbacks State
 defaultHsdCallbacks = mkHsdCallbacks {
     hsdPostInitCb = \s0 -> putStrLn "postInit" >> return s0,
     hsdPreShowCb = \s0 -> putStrLn "preShow" >> return s0,
@@ -15,40 +72,42 @@ defaultHsdCallbacks = mkHsdCallbacks {
         HsdacDemoStart -> do
             p <- hsdGetParams
             putStrLn $ show p
-            let xs = take 10 $ [0..] :: [Double]
-            let ys = take 10 $ [0,5..] :: [Double]
-            let s = zipWith Point xs ys
-            let gd = GenData 10 10 s s s s s s
+            gen <- newStdGen
+            let bd = BinData (randoms gen :: [Bool])
+            let s = mkSignals gen (mkSignalParams p) (paramShift p) (paramSnr p) bd
+            let gd = mkGenData s
             hsdSetSignals gd
+            putStrLn $ show (genSize gd)
             hsdRefresh
-            return s0
+            return (newDemoState s)
         HsdacDemoStep -> do
-            let xs = take 100 $ [0..] :: [Double]
-            let ys = take 100 $ [0,3..] :: [Double]
-            let s = zipWith Point xs ((^2) `fmap` ys)
-            let dd = DemoData 100 s s s 10 11 12
+            let s = signals s0
+            let cs = correlateAll s
+            let dd = mkDemoData cs
             hsdSetCurDemo dd
             hsdRefresh
-            return 0
+            return newState
         HsdacSimStart -> do
             putStrLn "simStart"
-            let sd = SimData (fromIntegral s0) 0.1 0.1 0.0
+            let sd = SimData 0 0.1 0.1 0.0
             hsdSetCurSim sd
             hsdRefresh
-            return s0
+            return newSimState
         HsdacSimStep -> do
             putStrLn "simStep"
-            let x = fromIntegral (s0 + 1)
+            let i = it s0
+            let x = fromIntegral $ i + 1
                 y = x * x * 0.01
             let sd = SimData x y (0.3 * y) (0.2 * y)
             hsdSetCurSim sd
             hsdRefresh
-            return (s0 + 1)
+            return s0 { it = (it s0) + 1 }
         HsdacSimEnd -> do
-            let sd = SimData (fromIntegral (s0 + 2)) 1 0.3 0.8
+            let i = fromIntegral $ it s0
+            let sd = SimData i 1 0.3 0.8
             hsdSetCurSim sd
             hsdRefresh
-            return 0
+            return newState
         _ -> return s0
         ,
     hsdPreExitCb = \s -> putStrLn "preExit" >> return s
@@ -57,6 +116,5 @@ defaultHsdCallbacks = mkHsdCallbacks {
 someFunc :: IO ()
 someFunc = do
     hsdInit
-    let i = 0 :: Int
-    hsdShowAndWait i defaultHsdCallbacks
+    hsdShowAndWait newState defaultHsdCallbacks
     hsdExit
