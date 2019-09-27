@@ -4,7 +4,9 @@ Part of [d8euAI8sMs](https://github.com/d8euAI8sMs) namespace. See [`learning` r
 
 ## About
 
-Ising model applied to ferromagnetic average magnitization calculation.
+Maximum Likelihood method applied to time delay calculation between two signals (AM, PM, FM).
+
+![](ui.png)
 
 ## Details
 
