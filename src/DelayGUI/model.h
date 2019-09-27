@@ -36,13 +36,13 @@ namespace model
 	{
 		parameters p =
 		{
-			1,
-			0.1,
+			0.001,
+			0.0005,
 			25000,
 			9600,
 			250000,
 			-10,
-			10, -10, 100,
+			-30, -50, 100,
 			10
 		};
 		return p;
@@ -106,9 +106,9 @@ namespace model
 
 	inline static plot_group_data make_plot_group_data
 	(
-		plot::palette::pen_ptr am = plot::palette::pen(0xffffff),
-		plot::palette::pen_ptr pm = plot::palette::pen(0x999999),
-		plot::palette::pen_ptr fm = plot::palette::pen(0x555555),
+		plot::palette::pen_ptr am = plot::palette::pen(0x5555ff),
+		plot::palette::pen_ptr pm = plot::palette::pen(0x55aa55),
+		plot::palette::pen_ptr fm = plot::palette::pen(0xff0000),
 		plot::list_data_format data_format = plot::list_data_format::chain
 	)
 	{

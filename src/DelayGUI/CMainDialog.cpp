@@ -6,7 +6,6 @@
 #include "CMainDialog.h"
 #include "afxdialogex.h"
 
-
 // CMainDialog dialog
 
 IMPLEMENT_DYNAMIC(CMainDialog, CSimulationDialog)
