@@ -46,6 +46,7 @@ mkSignal p d m = runST $ do
              <*> V.generateM n (gen' s) where
     n = fromTime p (timespan p)
 
+    -- TODO: can we do better? possibly replace ST with State?
     gen' :: STRef a GenState -> Int -> ST a Double
     gen' s i = do
       s0 <- readSTRef s
@@ -115,6 +116,7 @@ correlate d1' d2' = SignalData ts ss where
     corr i = V.sum $ V.zipWith (*) d1 (V.slice i n1 d2)
   ts = V.take n1 (xs d2')
 
+-- TODO: can we do better? (and faster?)
 noise :: StdGen -> [Double]
 noise g = sum `fmap` chunksOf 12 (fmap normalize $ randoms g)
 
