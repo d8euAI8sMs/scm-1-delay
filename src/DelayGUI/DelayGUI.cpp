@@ -179,5 +179,5 @@ void hsd_set_cur_sim(sim_data_t* data) {
 
 void hsd_stop_sim() {
 	AFX_MANAGE_STATE(AfxGetStaticModuleState());
-	static_cast<CMainDialog*>(theApp.GetMainWnd())->StopSimulationThread();
+	static_cast<CMainDialog*>(theApp.GetMainWnd())->m_bWorking = FALSE;
 }

@@ -197,9 +197,7 @@ void CMainDialog::OnSimulation()
 	});
 
 	while (m_bWorking) {
-		Invoke([this]() {
-			if (m_callbackCb != 0) m_callbackCb(HSDEV_ON_ACTION, HSDAC_SIM_STEP, 0);
-		});
+		if (m_callbackCb != 0) m_callbackCb(HSDEV_ON_ACTION, HSDAC_SIM_STEP, 0);
 	}
 
 	Invoke([this]() {
