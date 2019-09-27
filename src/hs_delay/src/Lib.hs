@@ -6,6 +6,7 @@ import Interop
 import Signal hiding (Point(..))
 import Util
 import System.Random
+import qualified Data.Vector.Primitive as V
 
 data Signals = Signals {
     am :: (SignalData, SignalData),
@@ -30,15 +31,14 @@ newSimState = SimState 0
 newDemoState s = DemoState s
 
 mkGenData :: Signals -> GenData
-mkGenData s = GenData n ns (mk $ fst $ am s)
-                           (mk $ fst $ pm s)
-                           (mk $ fst $ fm s)
-                           (mk $ snd $ am s)
-                           (mk $ snd $ pm s)
-                           (mk $ snd $ fm s) where
-    n  = length $ signalData $ fst (am s)
-    ns = length $ signalData $ snd (am s)
-    mk ds = ptpt `fmap` signalData ds
+mkGenData s = GenData n ns (ptpt $ fst $ am s)
+                           (ptpt $ fst $ pm s)
+                           (ptpt $ fst $ fm s)
+                           (ptpt $ snd $ am s)
+                           (ptpt $ snd $ pm s)
+                           (ptpt $ snd $ fm s) where
+    n  = V.length $ xs $ fst (am s)
+    ns = V.length $ xs $ snd (am s)
 
 mkSignals :: StdGen -> SignalParams -> Double -> Double -> BinData -> Signals
 mkSignals g p tau snr bd = Signals { am = mk AM, pm = mk PM, fm = mk FM } where
@@ -55,14 +55,13 @@ correlateAll (Signals am pm fm) = Correlations (corr am) (corr pm) (corr fm) whe
         tau = argmax pts
 
 mkDemoData :: Correlations -> DemoData
-mkDemoData cs = DemoData n (mk $ snd $ amCors cs)
-                           (mk $ snd $ pmCors cs)
-                           (mk $ snd $ fmCors cs)
+mkDemoData cs = DemoData n (ptpt $ snd $ amCors cs)
+                           (ptpt $ snd $ pmCors cs)
+                           (ptpt $ snd $ fmCors cs)
                            (fst $ amCors cs)
                            (fst $ pmCors cs)
                            (fst $ fmCors cs) where
-    n = length $ signalData $ snd (amCors cs)
-    mk ds = ptpt `fmap` signalData ds
+    n = V.length $ xs $ snd (amCors cs)
 
 defaultHsdCallbacks :: HsdCallbacks State
 defaultHsdCallbacks = mkHsdCallbacks {

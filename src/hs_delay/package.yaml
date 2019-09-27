@@ -19,6 +19,7 @@ dependencies:
 - base >= 4.7 && < 5
 - random
 - split
+- vector
 
 library:
   include-dirs: ..\..\include

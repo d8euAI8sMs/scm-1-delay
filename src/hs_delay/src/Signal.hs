@@ -1,7 +1,6 @@
 module Signal
   ( Modulation(..)
   , SignalParams(..)
-  , Point(..)
   , BinData(..)
   , SignalData(..)
 
@@ -18,6 +17,8 @@ import Control.Monad.ST
 import Data.STRef
 import Data.List.Split(chunksOf)
 
+import qualified Data.Vector.Primitive as V
+
 data Modulation = AM | PM | FM deriving (Eq, Show)
 
 data SignalParams = SignalParams {
@@ -27,13 +28,11 @@ data SignalParams = SignalParams {
   bitrate     :: Double
 } deriving (Eq, Show)
 
-data Point = Point {
-  x   :: Double,
-  y   :: Double
-} deriving (Eq, Show)
-
 newtype BinData = BinData { binData :: [Bool] } deriving (Eq, Show)
-newtype SignalData = SignalData { signalData :: [Point] } deriving (Eq, Show)
+data SignalData = SignalData {
+  xs :: V.Vector Double,
+  ys :: V.Vector Double
+} deriving (Eq, Show)
 
 data GenState = GenState {
   gstAmDataTail :: BinData,
@@ -43,23 +42,24 @@ data GenState = GenState {
 mkSignal :: SignalParams -> BinData -> Modulation -> SignalData
 mkSignal p d m = runST $ do
   s <- newSTRef $ GenState d 0
-  SignalData <$> (((gen' s) `mapM` (take n [0..]))) where
-    n = ceiling ((timespan p) * (sampling p)) :: Int
+  SignalData <$> (pure $ sampleTime p n)
+             <*> V.generateM n (gen' s) where
+    n = fromTime p (timespan p)
 
-    gen' :: STRef a GenState -> Int -> ST a Point
+    gen' :: STRef a GenState -> Int -> ST a Double
     gen' s i = do
       s0 <- readSTRef s
       let (s1, p) = gen s0 i
       writeSTRef s s1
       return p
 
-    gen :: GenState -> Int -> (GenState, Point)
-    gen st0 i = (st, Point t v) where
+    gen :: GenState -> Int -> (GenState, Double)
+    gen st0 i = (st, v) where
       -- unpack current state essentials
       (d0:ds)     = (binData . gstAmDataTail) st0
       di0         = gstAmDataIdx st0
       -- signal-related params
-      t           = toTime i
+      t           = toTime p i
       v           = case m of
         AM -> a * sin (2 * pi * f * t)              where a  = toReal d0
         PM -> sin (2 * pi * f * t + b * pi)         where b  = toReal d0
@@ -68,82 +68,67 @@ mkSignal p d m = runST $ do
                                                                                 br = (bitrate p)
         where f = carrier p
       -- generate next state
-      di1         = toSeqIdx t1 where t1 = toTime (i + 1)
+      di1         = toSeqIdx t1 where t1 = toTime p (i + 1)
       st          | di0 == di1  = st0
                   | otherwise   = GenState (BinData ds) di1
       -- helpers
-      toTime i0   = (fromIntegral i0) / (sampling p)
       toReal d0   = fromIntegral . fromEnum $ d0 :: Double
       toSgn d0    = fromIntegral . (normalize . fromEnum) $ d0 :: Double
       toSeqIdx t0 = round (t0 * (bitrate p)) :: Int
 
 noisify :: StdGen -> Double -> SignalData -> SignalData
-noisify g snr d' = SignalData r where
-  d = signalData d'
-  n = length d
-  ns' = take n $ noise g
+noisify g snr d' = SignalData (xs d') r where
+  d = ys d'
+  n = V.length d
+  ns' = V.fromListN n $ noise g
   
   esToEn = exp (snr / 10)
-  es = energy $ fmap y d
-  en' = energy $ ns'
+  es = energy d
+  en' = energy ns'
   en = es / esToEn
 
-  ns = fmap (*(en/en')) ns'
+  ns = V.map (*(en/en')) ns'
 
-  r = zipWith pls d ns where
-    pls pt n0 = pt { y = (y pt) + n0 }
+  r = V.zipWith (+) d ns
 
-  energy :: [Double] -> Double
-  energy l = foldl (+) 0 $ fmap (^2) l
+  energy :: V.Vector Double -> Double
+  energy l = V.sum $ V.map (^2) l
 
 shift :: SignalParams -> Double -> SignalData -> SignalData
-shift p tau' d' = SignalData ((zeros 0 off) ++ (move tau d) ++ (zeros next up)) where
-  d = signalData d'
-  n = length d
-  off = fromTime tau'
-  tau = toTime off
-  next = off + n + 1
-  up = n - off
+shift p tau' d' = SignalData newXs newYs where
+  d = ys d'
+  n = V.length d
 
-  move :: Double -> [Point] -> [Point]
-  move t0 pts = fmap gen pts where
-    gen p = p { x = (x p) + t0 }
-
-  zeros :: Int -> Int -> [Point]
-  zeros s n = take n $ zeros_ s
-
-  zeros_ :: Int -> [Point]
-  zeros_ s = gen `fmap` [s..] where
-    gen i = Point (toTime i) 0
-
-  toTime i0 = (fromIntegral i0) / (sampling p)
-  fromTime t0 = ceiling $ t0 * (sampling p) :: Int
+  newYs = (V.replicate off 0) V.++ d V.++ (V.replicate up 0) where
+    off = fromTime p tau'
+    up = n - off
+  newXs = sampleTime p (V.length newYs)
 
 correlate :: SignalData -> SignalData -> SignalData
-correlate d1' d2' = SignalData r where
-  d1 = signalData d1'
-  d2 = signalData d2'
-  n1 = length d1
-  n2 = length d2
+correlate d1' d2' = SignalData ts ss where
+  d1 = ys d1'
+  d2 = ys d2'
+  n1 = V.length d1
+  n2 = V.length d2
 
-  r = go d1 d2 n2 where
-    go d1 d2 n2 | n2 < n1   = []
-                | otherwise = (corr d1 d2) : (go d1 d2' (n2-1)) where
-                  (_:d2') = d2
-    corr d1 d2 = Point (x t) (sum $ zipWith (*) (seq d1) (seq d2)) where
-      (t:_)  = d2
-      seq ds = fmap y ds
+  ss = V.generate n1 corr where
+    corr i = V.sum $ V.zipWith (*) d1 (V.slice i n1 d2)
+  ts = V.take n1 (xs d2')
 
 noise :: StdGen -> [Double]
 noise g = sum `fmap` chunksOf 12 (fmap normalize $ randoms g)
 
 normalize :: Num a => a -> a
-normalize a = a * 2 - 1
+normalize = (subtract 1) . (*2)
+
+toTime :: SignalParams -> Int -> Double
+toTime p i = (fromIntegral i) / (sampling p)
+
+fromTime :: SignalParams -> Double -> Int
+fromTime p t = ceiling $ t * (sampling p)
+
+sampleTime :: SignalParams -> Int -> V.Vector Double
+sampleTime p n = V.generate n (toTime p)
 
 argmax :: SignalData -> Double
-argmax s = go (signalData s) where
-  go (p0:ps) = go' ps p0
-  go' [] p = x p
-  go' (p0:ps) p = go' ps (max' p0 p) where
-    max' p1 p2 | (y p1 < y p2) = p2
-               | otherwise     = p1
+argmax s = (xs s) V.! (V.maxIndex (ys s))

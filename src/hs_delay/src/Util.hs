@@ -5,9 +5,10 @@ module Util
 
 import qualified Interop
 import qualified Signal
+import qualified Data.Vector.Primitive as V
 
-ptpt :: Signal.Point -> Interop.Point
-ptpt (Signal.Point x y) = Interop.Point x y
+ptpt :: Signal.SignalData -> [Interop.Point]
+ptpt (Signal.SignalData xs ys) = zipWith Interop.Point (V.toList xs) (V.toList ys)
 
 mkSignalParams :: Interop.Params -> Signal.SignalParams
 mkSignalParams Interop.Params {
