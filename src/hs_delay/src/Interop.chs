@@ -16,6 +16,7 @@ module Interop
     , hsdSetSignals
     , hsdSetCurSim
     , hsdSetCurDemo
+    , hsdStopSim
 
     , hsdInit
     , hsdRefresh

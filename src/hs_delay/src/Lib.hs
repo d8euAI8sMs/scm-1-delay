@@ -6,6 +6,8 @@ import Interop
 import Signal hiding (Point(..))
 import Util
 import System.Random
+import Control.Parallel.Strategies
+import Control.Monad(replicateM)
 import qualified Data.Vector.Primitive as V
 
 data Signals = Signals {
@@ -20,14 +22,18 @@ data Correlations = Correlations {
     fmCors :: (Double, SignalData)
 }
 
+newtype Probs = Probs (Double, Double, Double)
+
 data State = Empty | DemoState {
     signals :: Signals
 } | SimState {
-    it :: Int
+    params  :: Params,
+    rands   :: BinData,
+    it      :: Int
 }
 
 newState = Empty
-newSimState = SimState 0
+newSimState p bd = SimState p bd 0
 newDemoState s = DemoState s
 
 mkGenData :: Signals -> GenData
@@ -63,6 +69,24 @@ mkDemoData cs = DemoData n (ptpt $ snd $ amCors cs)
                            (fst $ fmCors cs) where
     n = V.length $ xs $ snd (amCors cs)
 
+-- TODO: I hope we may do this much better...
+simStep' :: StdGen -> [StdGen] -> SignalParams -> Modulation -> BinData -> Double -> Int -> Double
+simStep' g gs p m bd snr n = (sum $ parMap rdeepseq gen $ take n $ zipWith (,) gs (randomRs (0, timespan p) g)) / (fromIntegral n) where
+    gen (g', ts) | ok r      = 1
+                 | otherwise = 0 where
+        ok r = (abs (r - ts)) < (1 / (bitrate p))
+        r = argmax corr
+        corr = correlate s1 s2
+        s1' = mkSignal p bd m
+        s2' = shift p ts s1
+        s1  = noisify g' 10 s1'
+        s2  = noisify g' snr s2'
+
+simStep g gs p bd snr n = Probs (simStep' g gs p AM bd snr n, simStep' g gs p PM bd snr n, simStep' g gs p FM bd snr n)
+
+mkSimData :: Double -> Probs -> SimData
+mkSimData snr (Probs (am, pm, fm)) = SimData snr am pm fm
+
 defaultHsdCallbacks :: HsdCallbacks State
 defaultHsdCallbacks = mkHsdCallbacks {
     hsdPostInitCb = \s0 -> putStrLn "postInit" >> return s0,
@@ -88,23 +112,31 @@ defaultHsdCallbacks = mkHsdCallbacks {
             return newState
         HsdacSimStart -> do
             putStrLn "simStart"
-            let sd = SimData 0 0.1 0.1 0.0
-            hsdSetCurSim sd
+            p <- hsdGetParams
+            putStrLn $ show p
+            gen <- newStdGen
+            let bd = BinData (randoms gen :: [Bool])
             hsdRefresh
-            return newSimState
+            return $ newSimState p bd
         HsdacSimStep -> do
+            gen <- newStdGen
             putStrLn "simStep"
-            let i = it s0
-            let x = fromIntegral $ i + 1
-                y = x * x * 0.01
-            let sd = SimData x y (0.3 * y) (0.2 * y)
-            hsdSetCurSim sd
+            let p = params s0
+            let snrStep = ((paramSnrFrom p) - (paramSnrTo p)) / (fromIntegral $ paramSnrCount p)
+            let snr = (paramSnrFrom p) - (fromIntegral $ it s0) * snrStep
+            -- an awful solution to 'precreate' a known number of generators
+            -- and pass all of them to simulation iterator
+            -- TODO: migrate to some sort of State monad to manage all of this
+            gs <- replicateM (paramNumOfTests p) newStdGen
+            let res = simStep gen gs (mkSignalParams p) (rands s0) snr (paramNumOfTests p)
+            let res' = mkSimData snr res
+            putStrLn $ show res'
+            hsdSetCurSim $ res'
             hsdRefresh
-            return s0 { it = (it s0) + 1 }
+            if (it s0) >= (paramSnrCount p)
+                then hsdStopSim >> return newState
+                else return s0 { it = (it s0) + 1 }
         HsdacSimEnd -> do
-            let i = fromIntegral $ it s0
-            let sd = SimData i 1 0.3 0.8
-            hsdSetCurSim sd
             hsdRefresh
             return newState
         _ -> return s0

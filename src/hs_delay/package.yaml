@@ -20,6 +20,7 @@ dependencies:
 - random
 - split
 - vector
+- parallel
 
 library:
   include-dirs: ..\..\include
