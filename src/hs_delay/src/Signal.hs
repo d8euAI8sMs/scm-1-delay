@@ -13,8 +13,7 @@ module Signal
   ) where
 
 import System.Random
-import Control.Monad.ST
-import Data.STRef
+import Control.Monad.State.Lazy
 import Data.List.Split(chunksOf)
 
 import qualified Data.Vector.Primitive as V
@@ -40,22 +39,19 @@ data GenState = GenState {
 } deriving (Eq, Show)
 
 mkSignal :: SignalParams -> BinData -> Modulation -> SignalData
-mkSignal p d m = runST $ do
-  s <- newSTRef $ GenState d 0
+mkSignal p d m = evalState (mkSignal' p d m) (GenState d 0)
+
+mkSignal' :: SignalParams -> BinData -> Modulation -> State GenState SignalData
+mkSignal' p d m = do
   SignalData <$> (pure $ sampleTime p n)
-             <*> V.generateM n (gen' s) where
+             <*> V.generateM n gen' where
     n = fromTime p (timespan p)
 
-    -- TODO: can we do better? possibly replace ST with State?
-    gen' :: STRef a GenState -> Int -> ST a Double
-    gen' s i = do
-      s0 <- readSTRef s
-      let (s1, p) = gen s0 i
-      writeSTRef s s1
-      return p
+    gen' :: Int -> State GenState Double
+    gen' = state . gen
 
-    gen :: GenState -> Int -> (GenState, Double)
-    gen st0 i = (st, v) where
+    gen :: Int -> GenState -> (Double, GenState)
+    gen i st0 = (v, st) where
       -- unpack current state essentials
       (d0:ds)     = (binData . gstAmDataTail) st0
       di0         = gstAmDataIdx st0

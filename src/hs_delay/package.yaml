@@ -21,6 +21,7 @@ dependencies:
 - split
 - vector
 - parallel
+- mtl
 
 library:
   include-dirs: ..\..\include
