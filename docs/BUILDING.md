@@ -33,7 +33,37 @@
 * `Stack` with snapshot `lts-14.6` (`GHC 8.6.5`)
 * `c2hs` (type `stack install c2hs` to install it)
 * `MSYS MINGW64` (with `bin` directory in `PATH`)
-    - `gendef`
-    - `dlltool`
+    - `gendef` (`binutils` package)
+    - `dlltool` (`binutils` package)
 
 `c2hs` необходим для упрощения жизни при генерации оберток для нативных функций. Он автоматически начинает участвовать в сборке, если установлен через `Stack`.
+
+## Инструменты
+
+Псевдоскрипт:
+
+```sh
+# install vs2019-community
+# install vscode            # haskell code editing
+# install stack
+# install msys2
+
+stack install c2hs
+stack install shake         # for hie if needed
+pacman install mingw64/mingw-w64-x86_64-binutils
+                            # gendef and dlltool for msys
+
+set PATH=C:\msys64\mingw64\bin;%PATH%
+
+# if hie is needed
+git clone https://github.com/haskell/haskell-ide-engine hie
+cd hie
+stack ./install.hs hie-8.6.5
+stack ./install.hs data
+cd ..
+
+# install vscode haskell plugin
+
+cd hs-1-delay
+msbuild .
+```
